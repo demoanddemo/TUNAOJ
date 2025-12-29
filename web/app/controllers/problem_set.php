@@ -6,6 +6,52 @@ requirePHPLib('data');
 Auth::check() || redirectToLogin();
 UOJUser::checkPermission(Auth::user(), 'problems.view') || UOJResponse::page403();
 
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && UOJRequest::post('action') === 'make_public') {
+        crsf_defend();
+
+        $problem_id = UOJRequest::post('problem_id');
+
+        if (!validateUInt($problem_id)) {
+                dieWithJsonData(['status' => 'error', 'message' => '无效的题号']);
+        }
+
+        $problem = UOJProblem::query($problem_id);
+
+        if (!$problem) {
+                dieWithJsonData(['status' => 'error', 'message' => "不存在题号为 {$problem_id} 的题目"]);
+        }
+
+        $problem = new UOJProblem($problem);
+
+        if (!$problem->userCanManage(Auth::user())) {
+                UOJResponse::page403();
+        }
+
+        if (!$problem->info['is_hidden']) {
+                dieWithJsonData(['status' => 'success']);
+        }
+
+        DB::update([
+                "update problems",
+                "set", ["is_hidden" => 0],
+                "where", ["id" => $problem_id],
+        ]);
+
+        DB::update([
+                "update submissions",
+                "set", ["is_hidden" => 0],
+                "where", ["problem_id" => $problem_id],
+        ]);
+
+        DB::update([
+                "update hacks",
+                "set", ["is_hidden" => 0],
+                "where", ["problem_id" => $problem_id],
+        ]);
+
+        dieWithJsonData(['status' => 'success']);
+}
+
 if (UOJProblem::userCanCreateProblem(Auth::user())) {
 	$default_statement = <<<'EOD'
 ## 题目描述
@@ -96,9 +142,13 @@ function getProblemTR($info) {
 	if ($info['type'] == 'remote') {
 		$html .= ' ' . HTML::tag('a', ['class' => 'badge text-bg-success align-middle', 'href' => '/problems/remote'], '远端评测题');
 	}
-	if ($info['is_hidden']) {
-		$html .= ' <a href="/problems?is_hidden=on"><span class="badge text-bg-danger align-middle"><i class="bi bi-eye-slash-fill"></i> ' . UOJLocale::get('hidden') . '</span></a> ';
-	}
+        if ($info['is_hidden']) {
+                $html .= ' <a href="/problems?is_hidden=on"><span class="badge text-bg-danger align-middle"><i class="bi bi-eye-slash-fill"></i> ' . UOJLocale::get('hidden') . '</span></a> ';
+
+                if ($problem->userCanManage(Auth::user())) {
+                        $html .= ' <button type="button" class="btn btn-sm btn-outline-success align-middle uoj-problem-make-public" data-problem-id="' . $info['id'] . '"><i class="bi bi-unlock-fill"></i> 公开</button>';
+                }
+        }
 	if (isset($_COOKIE['show_tags_mode'])) {
 		$html .= HTML::tag_begin('span', ['class' => 'float-end']);
 		foreach ($problem->queryTags() as $tag) {
@@ -323,23 +373,49 @@ $pag = new Paginator([
 			});
 		</script>
 
-		<div class="card my-3">
-			<?=
-			HTML::responsive_table($header, $pag->get(), [
-				'table_attr' => [
-					'class' => ['table', 'uoj-table', 'mb-0'],
+                <div class="card my-3">
+                        <?=
+                        HTML::responsive_table($header, $pag->get(), [
+                                'table_attr' => [
+                                        'class' => ['table', 'uoj-table', 'mb-0'],
 				],
 				'tr' => function ($row, $idx) {
 					return getProblemTR($row);
 				}
 			]);
-			?>
-		</div>
+                        ?>
+                </div>
 
-		<?= $pag->pagination() ?>
+                <?= $pag->pagination() ?>
 
-	</div>
-	<!-- end left col -->
+                <?php if (UOJProblem::userCanManageSomeProblem(Auth::user())) : ?>
+                        <script>
+                                $('.uoj-problem-make-public').on('click', function() {
+                                        const $btn = $(this);
+
+                                        $btn.prop('disabled', true);
+
+                                        $.post('/problems', {
+                                                action: 'make_public',
+                                                problem_id: $btn.data('problem-id'),
+                                                _token: "<?= crsf_token() ?>"
+                                        }, function(res) {
+                                                if (res.status === 'success') {
+                                                        location.reload();
+                                                } else {
+                                                        alert(res.message || '操作失败');
+                                                }
+                                        }).fail(function() {
+                                                alert('请求失败');
+                                        }).always(function() {
+                                                $btn.prop('disabled', false);
+                                        });
+                                });
+                        </script>
+                <?php endif ?>
+
+        </div>
+        <!-- end left col -->
 
 	<!-- right col -->
 	<aside class="col-md-3 mt-3 mt-md-0">
