@@ -1,4 +1,70 @@
-<?php $extra = UOJUser::getExtra($user); ?>
+<?php
+$extra = UOJUser::getExtra($user);
+
+$first_ac_records = DB::selectAll([
+        "select date_format(min(submit_time), '%Y-%m-%d') as first_ac_date",
+        "from submissions",
+        "where", [
+                "submitter" => $user['username'],
+                "score" => 100,
+        ],
+        "group by problem_id",
+]);
+
+$monthly_first_ac = [];
+$daily_first_ac = [];
+foreach ($first_ac_records as $record) {
+        $date = $record['first_ac_date'];
+
+        if (!$date) {
+                continue;
+        }
+
+        $month = substr($date, 0, 7);
+        $monthly_first_ac[$month] = ($monthly_first_ac[$month] ?? 0) + 1;
+        $daily_first_ac[$date] = ($daily_first_ac[$date] ?? 0) + 1;
+}
+
+$now = clone UOJTime::$time_now;
+$now->setTime(0, 0);
+$current_month = (clone $now)->modify('first day of this month');
+
+$ac_trend_data = [];
+$ac_trend_total = 0;
+for ($i = 11; $i >= 0; $i--) {
+        $month = (clone $current_month)->modify("-{$i} months")->format('Y-m');
+        $monthly = $monthly_first_ac[$month] ?? 0;
+        $ac_trend_total += $monthly;
+
+        $ac_trend_data[] = [
+                'month' => $month,
+                'monthly' => $monthly,
+                'total' => $ac_trend_total,
+        ];
+}
+
+$daily_trend_data = [];
+$daily_start = (clone $now)->modify('-29 days');
+$base_solved_before_window = 0;
+foreach ($daily_first_ac as $date => $count) {
+        if ($date < $daily_start->format('Y-m-d')) {
+                $base_solved_before_window += $count;
+        }
+}
+
+$running_total = $base_solved_before_window;
+for ($i = 0; $i < 30; $i++) {
+        $day = (clone $daily_start)->modify("+{$i} days")->format('Y-m-d');
+        $daily = $daily_first_ac[$day] ?? 0;
+        $running_total += $daily;
+
+        $daily_trend_data[] = [
+                'day' => $day,
+                'daily' => $daily,
+                'total' => $running_total,
+        ];
+}
+?>
 
 <div class="row">
 	<div class="col-md-3">
@@ -232,9 +298,9 @@
 			</div>
 		<?php endif ?>
 
-		<?php if (isSuperUser(Auth::user())) : ?>
-			<div class="card mb-2">
-				<div class="card-header fw-bold">超级管理员可见信息</div>
+                <?php if (isSuperUser(Auth::user())) : ?>
+                        <div class="card mb-2">
+                                <div class="card-header fw-bold">超级管理员可见信息</div>
 				<ul class="list-group list-group-flush">
 					<li class="list-group-item">
 						<div class="fw-bold mb-2">注册时间</div>
@@ -274,14 +340,120 @@
 								</dd>
 							<?php endforeach ?>
 						</dl>
-					</li>
-				</ul>
-			</div>
-		<?php endif ?>
+                                        </li>
+                                </ul>
+                        </div>
+                <?php endif ?>
 
-		<?php
-		$ac_records = DB::selectAll([
-			"select", DB::fields([
+                <div class="card mb-2">
+                        <div class="card-header fw-bold">做题趋势</div>
+                        <div class="card-body">
+                                <div class="row">
+                                        <div class="col-lg-6 mb-3 mb-lg-0">
+                                                <canvas id="ac-monthly-chart" height="220"></canvas>
+                                        </div>
+                                        <div class="col-lg-6">
+                                                <canvas id="ac-daily-chart" height="220"></canvas>
+                                        </div>
+                                </div>
+                                <div class="small text-secondary mt-3">统计数据基于每道题首次通过的时间。</div>
+                        </div>
+                </div>
+                <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+                <script>
+                        (() => {
+                                const monthlyTrend = <?= json_encode($ac_trend_data) ?>;
+                                const dailyTrend = <?= json_encode($daily_trend_data) ?>;
+
+                                const defaultColors = {
+                                        bar: 'rgba(33, 150, 243, 0.45)',
+                                        barBorder: 'rgba(33, 150, 243, 0.95)',
+                                        line: 'rgba(26, 115, 232, 0.9)'
+                                };
+
+                                const buildChart = (canvasId, labels, barData, lineData, barLabel, lineLabel) => {
+                                        const ctx = document.getElementById(canvasId);
+                                        if (!ctx) {
+                                                return;
+                                        }
+
+                                        new Chart(ctx, {
+                                                type: 'bar',
+                                                data: {
+                                                        labels,
+                                                        datasets: [
+                                                                {
+                                                                        label: barLabel,
+                                                                        data: barData,
+                                                                        backgroundColor: defaultColors.bar,
+                                                                        borderColor: defaultColors.barBorder,
+                                                                        borderWidth: 1,
+                                                                        yAxisID: 'y'
+                                                                },
+                                                                {
+                                                                        type: 'line',
+                                                                        label: lineLabel,
+                                                                        data: lineData,
+                                                                        borderColor: defaultColors.line,
+                                                                        backgroundColor: 'rgba(26, 115, 232, 0.18)',
+                                                                        fill: true,
+                                                                        tension: 0.3,
+                                                                        yAxisID: 'y1'
+                                                                }
+                                                        ]
+                                                },
+                                                options: {
+                                                        responsive: true,
+                                                        maintainAspectRatio: false,
+                                                        interaction: {
+                                                                mode: 'index',
+                                                                intersect: false
+                                                        },
+                                                        scales: {
+                                                                y: {
+                                                                        beginAtZero: true,
+                                                                        ticks: {
+                                                                                precision: 0
+                                                                        }
+                                                                },
+                                                                y1: {
+                                                                        beginAtZero: true,
+                                                                        position: 'right',
+                                                                        grid: {
+                                                                                drawOnChartArea: false
+                                                                        },
+                                                                        ticks: {
+                                                                                precision: 0
+                                                                        }
+                                                                }
+                                                        }
+                                                }
+                                        });
+                                };
+
+                                buildChart(
+                                        'ac-monthly-chart',
+                                        monthlyTrend.map(item => item.month),
+                                        monthlyTrend.map(item => item.monthly),
+                                        monthlyTrend.map(item => item.total),
+                                        '当月通过数',
+                                        '累计通过数'
+                                );
+
+                                buildChart(
+                                        'ac-daily-chart',
+                                        dailyTrend.map(item => item.day.slice(5).replace('-', '/')),
+                                        dailyTrend.map(item => item.daily),
+                                        dailyTrend.map(item => item.total),
+                                        '当日通过数',
+                                        '累计通过数'
+                                );
+                        })();
+                </script>
+
+                <?php
+                $ac_records = DB::selectAll([
+                        "select", DB::fields([
 				"submit_time" => "date_format(submit_time, '%Y-%m-%d')",
 				"problem_id",
 			]),
