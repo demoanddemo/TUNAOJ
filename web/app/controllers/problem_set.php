@@ -39,25 +39,46 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && UOJRequest::post('action') === 'mak
                         dieWithJsonData(['status' => 'success']);
                 }
 
-                if (DB::startTransaction() === false) {
-                        throw new RuntimeException('无法开启数据库事务');
-                }
+                $started_transaction = false;
 
                 try {
+                        if (!DB::$in_transaction) {
+                                if (DB::startTransaction() === false) {
+                                        dieWithJsonData(['status' => 'error', 'message' => '无法开启数据库事务']);
+                                }
+
+                                DB::$in_transaction = true;
+                                $started_transaction = true;
+                        }
+
+                        $has_error = false;
+
                         foreach ([
                                 ["update problems", "set", ["is_hidden" => 0], "where", ["id" => $problem_id]],
                                 ["update submissions", "set", ["is_hidden" => 0], "where", ["problem_id" => $problem_id]],
                                 ["update hacks", "set", ["is_hidden" => 0], "where", ["problem_id" => $problem_id]],
                         ] as $query) {
                                 if (DB::update($query) === false) {
-                                        throw new RuntimeException('数据库更新失败');
+                                        $has_error = true;
+                                        break;
                                 }
                         }
 
-                        DB::commit();
-                } catch (Throwable $e) {
-                        DB::rollback();
-                        throw $e;
+                        if (!$has_error && $started_transaction && DB::commit() === false) {
+                                $has_error = true;
+                        }
+
+                        if ($has_error) {
+                                if ($started_transaction) {
+                                        DB::rollback();
+                                }
+
+                                dieWithJsonData(['status' => 'error', 'message' => '公开操作失败，请稍后再试或联系管理员']);
+                        }
+                } finally {
+                        if ($started_transaction) {
+                                DB::$in_transaction = false;
+                        }
                 }
 
                 dieWithJsonData(['status' => 'success']);
