@@ -4,56 +4,49 @@ requirePHPLib('judger');
 requirePHPLib('data');
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && UOJRequest::post('action') === 'make_public') {
-try {
-if (!crsf_check()) {
-dieWithJsonData(['status' => 'error', 'message' => '页面已过期，请刷新后再试']);
-}
+        if (!crsf_check()) {
+                UOJResponse::page403();
+        }
 
-if (!Auth::check()) {
-dieWithJsonData(['status' => 'error', 'message' => '请先登录后再试']);
-}
+        Auth::check() || redirectToLogin();
+        UOJUser::checkPermission(Auth::user(), 'problems.view') || UOJResponse::page403();
 
-if (!UOJUser::checkPermission(Auth::user(), 'problems.view')) {
-dieWithJsonData(['status' => 'error', 'message' => '无权访问题库']);
-}
+        $problem_id = UOJRequest::post('problem_id', 'validateUInt');
+        $problem = $problem_id ? UOJProblem::query($problem_id) : null;
 
-$problem_id = UOJRequest::post('problem_id', 'validateUInt');
+        if (!$problem) {
+                UOJResponse::page404();
+        }
 
-if ($problem_id === null) {
-dieWithJsonData(['status' => 'error', 'message' => '无效的题号']);
-}
+        $problem = new UOJProblem($problem);
 
-$problem = UOJProblem::query($problem_id);
+        if (!$problem->userCanManage(Auth::user())) {
+                UOJResponse::page403();
+        }
 
-if (!$problem) {
-dieWithJsonData(['status' => 'error', 'message' => "不存在题号为 {$problem_id} 的题目"]);
-}
+        if (!$problem->info['is_hidden']) {
+                dieWithJsonData(['status' => 'success']);
+        }
 
-$problem = new UOJProblem($problem);
+        DB::update([
+                "update problems",
+                "set", ["is_hidden" => 0],
+                "where", ["id" => $problem_id]
+        ]);
 
-if (!$problem->userCanManage(Auth::user())) {
-dieWithJsonData(['status' => 'error', 'message' => '你没有权限公开该题目']);
-}
+        DB::update([
+                "update submissions",
+                "set", ["is_hidden" => 0],
+                "where", ["problem_id" => $problem_id]
+        ]);
 
-if (!$problem->info['is_hidden']) {
-dieWithJsonData(['status' => 'success']);
-}
+        DB::update([
+                "update hacks",
+                "set", ["is_hidden" => 0],
+                "where", ["problem_id" => $problem_id]
+        ]);
 
-    foreach ([
-    ["update problems", "set", ["is_hidden" => 0], "where", ["id" => $problem_id]],
-    ["update submissions", "set", ["is_hidden" => 0], "where", ["problem_id" => $problem_id]],
-    ["update hacks", "set", ["is_hidden" => 0], "where", ["problem_id" => $problem_id]],
-    ] as $query) {
-    if (DB::update($query) === false) {
-    throw new Exception('update failed');
-    }
-    }
-
-    dieWithJsonData(['status' => 'success']);
-} catch (Throwable $e) {
-UOJLog::error('make_public failed: ', $e->getMessage(), "\n", $e->getTraceAsString());
-dieWithJsonData(['status' => 'error', 'message' => '公开操作失败，请稍后再试或联系管理员']);
-}
+        dieWithJsonData(['status' => 'success']);
 }
 
 Auth::check() || redirectToLogin();
