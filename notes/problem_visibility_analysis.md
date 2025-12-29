@@ -5,7 +5,9 @@ This note summarizes how the "未公开" (hidden) switch on a problem's statemen
 ## Frontend
 - The management page renders via `web/app/controllers/problem_statement_manage.php`. It builds a `UOJBlogEditor` instance with `cur_data['is_hidden']` mirroring the current `problems.is_hidden` flag and prints the editor view.
 - `web/app/views/blog-editor.php` outputs the form. It includes a checkbox `problem_is_hidden` with a Bootstrap Switch widget. The switch shows "未公开" (danger) when checked and "公开" (primary) when unchecked, labeled as "题目可见性".
-- Client behavior is driven by `web/js/blog-editor/blog-editor.js`. When saving, the form is serialized (including the `*_is_hidden` checkbox) and posted via AJAX to the same URL. The toggle state is submitted as `problem_is_hidden` when on.
+- Client behavior is driven by `web/js/blog-editor/blog-editor.js`:
+  - The switch change handler asks for confirmation when flipping from hidden to public, then makes the switch read-only while saving and rolls back the toggle if the save fails.
+  - Saving serializes the entire form (including `*_is_hidden`) and posts via AJAX to the same URL. The toggle state is submitted as `problem_is_hidden=on` when the switch is on; otherwise the field is absent and the backend treats the value as `0`.
 
 ## Backend
 - The editor's server handler in `UOJBlogEditor::receivePostData()` reads the checkbox into `$this->post_data['is_hidden']`, defaulting to `1` when the field is present and `0` otherwise, after CSRF defense and validation.
