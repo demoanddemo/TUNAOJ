@@ -4,49 +4,54 @@ requirePHPLib('judger');
 requirePHPLib('data');
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && UOJRequest::post('action') === 'make_public') {
-        if (!crsf_check()) {
-                UOJResponse::page403();
-        }
+	if (!crsf_check()) {
+		dieWithJsonData(['status' => 'error', 'message' => '页面已过期，请刷新后重试']);
+	}
 
-        Auth::check() || redirectToLogin();
-        UOJUser::checkPermission(Auth::user(), 'problems.view') || UOJResponse::page403();
+	if (!Auth::check()) {
+		dieWithJsonData(['status' => 'error', 'message' => '请先登录']);
+	}
 
-        $problem_id = UOJRequest::post('problem_id', 'validateUInt');
-        $problem = $problem_id ? UOJProblem::query($problem_id) : null;
+	if (!UOJUser::checkPermission(Auth::user(), 'problems.view')) {
+		dieWithJsonData(['status' => 'error', 'message' => '权限不足']);
+	}
 
-        if (!$problem) {
-                UOJResponse::page404();
-        }
+	$problem_id = UOJRequest::post('problem_id', 'validateUInt');
+	$problem = $problem_id ? UOJProblem::query($problem_id) : null;
 
-        $problem = new UOJProblem($problem);
+	if (!$problem) {
+		dieWithJsonData(['status' => 'error', 'message' => '题目不存在']);
+	}
 
-        if (!$problem->userCanManage(Auth::user())) {
-                UOJResponse::page403();
-        }
+	$problem = new UOJProblem($problem);
 
-        if (!$problem->info['is_hidden']) {
-                dieWithJsonData(['status' => 'success']);
-        }
+	if (!$problem->userCanManage(Auth::user())) {
+		dieWithJsonData(['status' => 'error', 'message' => '权限不足']);
+	}
 
-        DB::update([
-                "update problems",
-                "set", ["is_hidden" => 0],
-                "where", ["id" => $problem_id]
-        ]);
+	if (!$problem->info['is_hidden']) {
+		dieWithJsonData(['status' => 'success']);
+	}
 
-        DB::update([
-                "update submissions",
-                "set", ["is_hidden" => 0],
-                "where", ["problem_id" => $problem_id]
-        ]);
+	DB::update([
+		"update problems",
+		"set", ["is_hidden" => 0],
+		"where", ["id" => $problem_id]
+	]);
 
-        DB::update([
-                "update hacks",
-                "set", ["is_hidden" => 0],
-                "where", ["problem_id" => $problem_id]
-        ]);
+	DB::update([
+		"update submissions",
+		"set", ["is_hidden" => 0],
+		"where", ["problem_id" => $problem_id]
+	]);
 
-        dieWithJsonData(['status' => 'success']);
+	DB::update([
+		"update hacks",
+		"set", ["is_hidden" => 0],
+		"where", ["problem_id" => $problem_id]
+	]);
+
+	dieWithJsonData(['status' => 'success']);
 }
 
 Auth::check() || redirectToLogin();
