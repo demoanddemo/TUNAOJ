@@ -44,6 +44,20 @@ docker-compose up -d
 docker-compose -f docker-compose.development.yml up --build
 ```
 
+### 下载完整代码
+
+在仓库根目录运行以下脚本会将当前代码导出为压缩包，并在完成后输出压缩包的绝对路径：
+
+```bash
+scripts/archive_repo.sh
+```
+
+如需自定义输出文件名或保存位置，可传入路径参数，例如：
+
+```bash
+scripts/archive_repo.sh /tmp/TUNAOJ.zip
+```
+
 ## 感谢
 
 - [vfleaking](https://github.com/vfleaking) 将 UOJ 代码 [开源](https://github.com/vfleaking/uoj)
