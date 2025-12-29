@@ -39,7 +39,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && UOJRequest::post('action') === 'mak
                         dieWithJsonData(['status' => 'success']);
                 }
 
-                DB::startTransaction();
+                if (DB::startTransaction() === false) {
+                        throw new RuntimeException('无法开启数据库事务');
+                }
 
                 try {
                         foreach ([
