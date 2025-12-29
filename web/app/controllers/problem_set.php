@@ -39,25 +39,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && UOJRequest::post('action') === 'mak
                         dieWithJsonData(['status' => 'success']);
                 }
 
-                DB::transaction(function () use ($problem_id) {
-                        DB::update([
-                                "update problems",
-                                "set", ["is_hidden" => 0],
-                                "where", ["id" => $problem_id],
-                        ]);
+                DB::startTransaction();
 
-                        DB::update([
-                                "update submissions",
-                                "set", ["is_hidden" => 0],
-                                "where", ["problem_id" => $problem_id],
-                        ]);
+                try {
+                        foreach ([
+                                ["update problems", "set", ["is_hidden" => 0], "where", ["id" => $problem_id]],
+                                ["update submissions", "set", ["is_hidden" => 0], "where", ["problem_id" => $problem_id]],
+                                ["update hacks", "set", ["is_hidden" => 0], "where", ["problem_id" => $problem_id]],
+                        ] as $query) {
+                                if (DB::update($query) === false) {
+                                        throw new RuntimeException('数据库更新失败');
+                                }
+                        }
 
-                        DB::update([
-                                "update hacks",
-                                "set", ["is_hidden" => 0],
-                                "where", ["problem_id" => $problem_id],
-                        ]);
-                });
+                        DB::commit();
+                } catch (Throwable $e) {
+                        DB::rollback();
+                        throw $e;
+                }
 
                 dieWithJsonData(['status' => 'success']);
         } catch (Throwable $e) {
