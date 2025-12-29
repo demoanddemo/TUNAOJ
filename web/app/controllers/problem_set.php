@@ -4,54 +4,61 @@ requirePHPLib('judger');
 requirePHPLib('data');
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && UOJRequest::post('action') === 'make_public') {
-	if (!crsf_check()) {
-		dieWithJsonData(['status' => 'error', 'message' => '页面已过期，请刷新后重试']);
-	}
+        try {
+                if (!crsf_check()) {
+                        dieWithJsonData(['status' => 'error', 'message' => '页面已过期，请刷新后重试']);
+                }
 
-	if (!Auth::check()) {
-		dieWithJsonData(['status' => 'error', 'message' => '请先登录']);
-	}
+                if (!Auth::check()) {
+                        dieWithJsonData(['status' => 'error', 'message' => '请先登录']);
+                }
 
-	if (!UOJUser::checkPermission(Auth::user(), 'problems.view')) {
-		dieWithJsonData(['status' => 'error', 'message' => '权限不足']);
-	}
+                if (!UOJUser::checkPermission(Auth::user(), 'problems.view')) {
+                        dieWithJsonData(['status' => 'error', 'message' => '权限不足']);
+                }
 
-	$problem_id = UOJRequest::post('problem_id', 'validateUInt');
-	$problem = $problem_id ? UOJProblem::query($problem_id) : null;
+                $problem_id = UOJRequest::post('problem_id', 'validateUInt');
+                $problem = $problem_id ? UOJProblem::query($problem_id) : null;
 
-	if (!$problem) {
-		dieWithJsonData(['status' => 'error', 'message' => '题目不存在']);
-	}
+                if (!$problem) {
+                        dieWithJsonData(['status' => 'error', 'message' => '题目不存在']);
+                }
 
-	$problem = new UOJProblem($problem);
+                $problem = new UOJProblem($problem);
 
-	if (!$problem->userCanManage(Auth::user())) {
-		dieWithJsonData(['status' => 'error', 'message' => '权限不足']);
-	}
+                if (!$problem->userCanManage(Auth::user())) {
+                        dieWithJsonData(['status' => 'error', 'message' => '权限不足']);
+                }
 
-	if (!$problem->info['is_hidden']) {
-		dieWithJsonData(['status' => 'success']);
-	}
+                if (!$problem->info['is_hidden']) {
+                        dieWithJsonData(['status' => 'success']);
+                }
 
-	DB::update([
-		"update problems",
-		"set", ["is_hidden" => 0],
-		"where", ["id" => $problem_id]
-	]);
+                DB::update([
+                        "update problems",
+                        "set", ["is_hidden" => 0],
+                        "where", ["id" => $problem_id]
+                ]);
 
-	DB::update([
-		"update submissions",
-		"set", ["is_hidden" => 0],
-		"where", ["problem_id" => $problem_id]
-	]);
+                DB::update([
+                        "update submissions",
+                        "set", ["is_hidden" => 0],
+                        "where", ["problem_id" => $problem_id]
+                ]);
 
-	DB::update([
-		"update hacks",
-		"set", ["is_hidden" => 0],
-		"where", ["problem_id" => $problem_id]
-	]);
+                DB::update([
+                        "update hacks",
+                        "set", ["is_hidden" => 0],
+                        "where", ["problem_id" => $problem_id]
+                ]);
 
-	dieWithJsonData(['status' => 'success']);
+                dieWithJsonData(['status' => 'success']);
+        } catch (Throwable $e) {
+                UOJLog::error($e);
+
+                http_response_code(200);
+                dieWithJsonData(['status' => 'error', 'message' => '公开操作失败，请稍后再试或联系管理员']);
+        }
 }
 
 Auth::check() || redirectToLogin();
