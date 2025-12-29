@@ -408,25 +408,34 @@ $pag = new Paginator([
                                         $.ajax({
                                                 url: '/problems',
                                                 method: 'POST',
-                                                dataType: 'json',
+                                                dataType: 'text',
                                                 data: {
                                                         action: 'make_public',
                                                         problem_id: $btn.data('problem-id'),
                                                         _token: "<?= crsf_token() ?>"
                                                 },
-                                                success(res) {
-                                                        if (res.status === 'success') {
-                                                                location.reload();
-                                                        } else {
-                                                                alert(res.message || '操作失败');
+                                        })
+                                                .done((res) => {
+                                                        let data;
+
+                                                        try {
+                                                                data = JSON.parse(res);
+                                                        } catch (e) {
+                                                                data = {};
                                                         }
-                                                },
-                                                error(xhr) {
+
+                                                        if (data.status === 'success') {
+                                                                location.reload();
+                                                        } else if (data.message) {
+                                                                alert(data.message);
+                                                        } else {
+                                                                alert('操作失败');
+                                                        }
+                                                })
+                                                .fail((xhr) => {
                                                         let message = '请求失败';
 
-                                                        if (xhr.responseJSON?.message) {
-                                                                message = xhr.responseJSON.message;
-                                                        } else if (xhr.responseText) {
+                                                        if (xhr.responseText) {
                                                                 try {
                                                                         const data = JSON.parse(xhr.responseText);
 
@@ -434,16 +443,15 @@ $pag = new Paginator([
                                                                                 message = data.message;
                                                                         }
                                                                 } catch (e) {
-                                                                        message = xhr.responseText;
+                                                                        message = xhr.responseText || message;
                                                                 }
                                                         }
 
                                                         alert(message);
-                                                },
-                                                complete() {
+                                                })
+                                                .always(() => {
                                                         $btn.prop('disabled', false);
-                                                },
-                                        });
+                                                });
                                 });
                         </script>
                 <?php endif ?>
