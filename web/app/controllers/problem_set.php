@@ -39,30 +39,17 @@ if (!$problem->info['is_hidden']) {
 dieWithJsonData(['status' => 'success']);
 }
 
-try {
-if (DB::startTransaction() === false) {
-dieWithJsonData(['status' => 'error', 'message' => '无法开启数据库事务']);
-}
+    foreach ([
+    ["update problems", "set", ["is_hidden" => 0], "where", ["id" => $problem_id]],
+    ["update submissions", "set", ["is_hidden" => 0], "where", ["problem_id" => $problem_id]],
+    ["update hacks", "set", ["is_hidden" => 0], "where", ["problem_id" => $problem_id]],
+    ] as $query) {
+    if (DB::update($query) === false) {
+    throw new Exception('update failed');
+    }
+    }
 
-foreach ([
-["update problems", "set", ["is_hidden" => 0], "where", ["id" => $problem_id]],
-["update submissions", "set", ["is_hidden" => 0], "where", ["problem_id" => $problem_id]],
-["update hacks", "set", ["is_hidden" => 0], "where", ["problem_id" => $problem_id]],
-] as $query) {
-if (DB::update($query) === false) {
-throw new Exception('update failed');
-}
-}
-
-if (DB::commit() === false) {
-throw new Exception('commit failed');
-}
-} catch (Throwable $e) {
-DB::rollback();
-throw $e;
-}
-
-dieWithJsonData(['status' => 'success']);
+    dieWithJsonData(['status' => 'success']);
 } catch (Throwable $e) {
 UOJLog::error('make_public failed: ', $e->getMessage(), "\n", $e->getTraceAsString());
 dieWithJsonData(['status' => 'error', 'message' => '公开操作失败，请稍后再试或联系管理员']);
