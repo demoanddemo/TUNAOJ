@@ -17,9 +17,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && UOJRequest::post('action') === 'mak
                         dieWithJsonData(['status' => 'error', 'message' => '无权访问题库']);
                 }
 
-                $problem_id = UOJRequest::post('problem_id');
+                $problem_id = UOJRequest::post('problem_id', 'validateUInt');
 
-                if (!validateUInt($problem_id)) {
+                if ($problem_id === null) {
                         dieWithJsonData(['status' => 'error', 'message' => '无效的题号']);
                 }
 
@@ -39,28 +39,30 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && UOJRequest::post('action') === 'mak
                         dieWithJsonData(['status' => 'success']);
                 }
 
-                DB::update([
-                        "update problems",
-                        "set", ["is_hidden" => 0],
-                        "where", ["id" => $problem_id],
-                ]);
+                DB::transaction(function () use ($problem_id) {
+                        DB::update([
+                                "update problems",
+                                "set", ["is_hidden" => 0],
+                                "where", ["id" => $problem_id],
+                        ]);
 
-                DB::update([
-                        "update submissions",
-                        "set", ["is_hidden" => 0],
-                        "where", ["problem_id" => $problem_id],
-                ]);
+                        DB::update([
+                                "update submissions",
+                                "set", ["is_hidden" => 0],
+                                "where", ["problem_id" => $problem_id],
+                        ]);
 
-                DB::update([
-                        "update hacks",
-                        "set", ["is_hidden" => 0],
-                        "where", ["problem_id" => $problem_id],
-                ]);
+                        DB::update([
+                                "update hacks",
+                                "set", ["is_hidden" => 0],
+                                "where", ["problem_id" => $problem_id],
+                        ]);
+                });
 
                 dieWithJsonData(['status' => 'success']);
         } catch (Throwable $e) {
-                UOJLog::error('make_public failed: ', $e->getMessage());
-                dieWithJsonData(['status' => 'error', 'message' => '服务器繁忙，请稍后再试']);
+                UOJLog::error('make_public failed: ', $e->getMessage(), "\n", $e->getTraceAsString());
+                dieWithJsonData(['status' => 'error', 'message' => '公开操作失败，请稍后再试或联系管理员']);
         }
 }
 
