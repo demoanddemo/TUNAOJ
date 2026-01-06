@@ -10,10 +10,13 @@ UOJSubmission::cur()->userCanView(Auth::user(), ['ensure' => true]);
 
 $perm = UOJSubmission::cur()->viewerCanSeeComponents(Auth::user());
 
+$history_time_options = [];
+
 $can_see_minor = false;
 if ($perm['score']) {
 	$can_see_minor = UOJSubmission::cur()->userCanSeeMinorVersions(Auth::user());
 	UOJSubmissionHistory::init(UOJSubmission::cur(), ['minor' => $can_see_minor]) || UOJResponse::page404();
+
 	if (isset($_GET['time'])) {
 		$history_time = UOJRequest::get('time', 'is_short_string');
 		!empty($history_time) || UOJResponse::page404();
@@ -24,7 +27,10 @@ if ($perm['score']) {
 		UOJSubmission::cur()->loadHistoryByTID(UOJRequest::get('tid', 'validateUInt')) || UOJResponse::page404();
 		!UOJSubmission::cur()->isMajor() || UOJResponse::page404();
 	}
+
+	$history_time_options = UOJSubmissionHistory::cur()->getJudgeTimeOptions();
 }
+
 
 $submission = UOJSubmission::info();
 $submission_result = UOJSubmission::cur()->getResult();
@@ -275,7 +281,26 @@ if (isset($hack_form)) {
 	<div class="submission-left-col">
 		<?php
 		if ($perm['score']) {
-			HTML::echoPanel('mb-3', '测评历史', function () {
+			HTML::echoPanel('mb-3', '测评历史', function () use ($history_time_options) {
+                                if (!empty($history_time_options)) {
+                                        echo '<form class="row row-cols-lg-auto g-2 align-items-end mb-3" method="get" action="' . UOJSubmission::cur()->getUriForLatest() . '">';
+                                        echo '<div class="col-12 col-md-6 col-lg-5">';
+                                        echo '<label class="form-label mb-1 small text-muted" for="judge_time_jump">根据测评时间跳转</label>';
+                                        echo '<select class="form-select form-select-sm" id="judge_time_jump" name="time">';
+                                        foreach ($history_time_options as $idx => $time) {
+                                                $selected = $idx === 0 ? ' selected' : '';
+                                                echo '<option value="' . HTML::escape($time) . '"' . $selected . '>' . HTML::escape($time) . '</option>';
+                                        }
+                                        echo '</select>';
+                                        echo '</div>';
+                                        echo '<div class="col-12 col-md-auto">';
+                                        echo '<button type="submit" class="btn btn-outline-primary btn-sm">';
+                                        echo '<i class="bi bi-clock-history"></i> 跳转';
+                                        echo '</button>';
+                                        echo '</div>';
+                                        echo '</form>';
+                                }
+
 				UOJSubmissionHistory::cur()->echoTimeline();
 			});
 		}
