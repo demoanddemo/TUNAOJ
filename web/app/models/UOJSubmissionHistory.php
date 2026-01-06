@@ -137,6 +137,30 @@ class UOJSubmissionHistory {
 		}
 	}
 
+	public function getJudgeTimeOptions() {
+		$times = [];
+
+		foreach ($this->info as $his) {
+			if (($his['type'] != 'major' && $his['type'] != 'minor') || $his['time'] === null) {
+				continue;
+			}
+
+			$time = DateTime::createFromFormat(UOJTime::FORMAT, $his['time']);
+			if ($time === false) {
+				continue;
+			}
+
+			$formatted_time = $time->format('Y.m.d-H.i.s');
+			$times[$formatted_time] = true;
+		}
+
+                $times = array_keys($times);
+                // 逆序排列方便快速选到最新一次测评
+                rsort($times);
+
+                return $times;
+        }
+
 	public function echoTimeline() {
 		echo '<div class="list-group timeline">';
 		if ($this->submission->isLatest()) {
