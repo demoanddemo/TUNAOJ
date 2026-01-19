@@ -22,15 +22,20 @@ $is_participating = false;
 $no_more_submission = false;
 $submission_warning = null;
 if (UOJContest::cur()) {
-	if (UOJContest::cur()->userCanParticipateNow(Auth::user())) {
+	$virtual_info = UOJContest::cur()->getVirtualParticipationInfo(Auth::user());
+	$virtual_active = $virtual_info && $virtual_info['is_active'];
+	if (UOJContest::cur()->userCanParticipateNow(Auth::user()) || $virtual_active) {
 		if (!UOJContest::cur()->userHasMarkedParticipated(Auth::user())) {
-			redirectTo(UOJContest::cur()->getUri("/confirm"));
+			if (!$virtual_active) {
+				redirectTo(UOJContest::cur()->getUri("/confirm"));
+			}
 		}
 		$is_participating = true;
 		$submit_time_limit = UOJContestProblem::cur()->submitTimeLimit();
 		$max_cnt = UOJContest::cur()->maxSubmissionCountPerProblem();
 		if ($submit_time_limit != -1) {
-			$cur_contest_time = (UOJTime::$time_now->getTimestamp() - UOJContest::info('start_time')->getTimestamp()) / 60;
+			$start_time = $virtual_active ? $virtual_info['start_time'] : UOJContest::info('start_time');
+			$cur_contest_time = (UOJTime::$time_now->getTimestamp() - $start_time->getTimestamp()) / 60;
 			if ($cur_contest_time > $submit_time_limit) {
 				$no_more_submission = "本题只能在比赛的前 {$submit_time_limit} 分钟提交，没法再交咯";
 			}
