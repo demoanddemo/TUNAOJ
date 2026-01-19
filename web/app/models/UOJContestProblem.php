@@ -142,6 +142,9 @@ class UOJContestProblem extends UOJProblem {
 			return true;
 		}
 		if ($this->contest->progress() > CONTEST_IN_PROGRESS && !parent::userCanView(Auth::user())) {
+			if ($this->contest->isVirtualParticipationActive(Auth::user())) {
+				return true;
+			}
 			return '比赛已结束，请耐心等待管理员在题库公开题目后再提交哦～';
 		}
 		return true;
@@ -149,7 +152,7 @@ class UOJContestProblem extends UOJProblem {
 
 	public function additionalSubmissionComponentsCannotBeSeenByUser(array $user = null, UOJSubmission $submission) {
 		// excluding manager_view, score; don't check whether $user is a manager
-		if ($this->contest->progress() == CONTEST_IN_PROGRESS) {
+		if ($this->contest->progress() == CONTEST_IN_PROGRESS || $this->contest->isVirtualParticipationActive($user)) {
 			if ($submission->userIsSubmitter($user)) {
 				if ($this->getJudgeTypeInContest() == 'no-details') {
 					return ['low_level_details'];

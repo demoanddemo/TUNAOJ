@@ -404,7 +404,8 @@ class UOJContest {
 	public function userCanView(array $user = null, $cfg = []) {
 		$cfg += [
 			'ensure' => false,
-			'check-register' => false
+			'check-register' => false,
+			'allow_virtual' => false,
 		];
 
 		if ($this->userCanManage($user)) {
@@ -442,7 +443,12 @@ class UOJContest {
 				return true;
 			}
 		} else {
-			if (!$this->userHasRegistered($user) && !UOJUser::checkPermission($user, 'contests.view')) {
+			if (
+				!$this->userHasRegistered($user)
+				&& !$this->queryVirtualParticipation($user)
+				&& !$cfg['allow_virtual']
+				&& !UOJUser::checkPermission($user, 'contests.view')
+			) {
 				$cfg['ensure'] && UOJResponse::page403();
 				return false;
 			}
@@ -494,6 +500,91 @@ class UOJContest {
 				'contest_id' => $this->info['id']
 			]
 		]) != null;
+	}
+
+	public function canStartVirtualParticipation(array $user = null) {
+		if (!$user) {
+			return false;
+		}
+		return $this->progress() > CONTEST_IN_PROGRESS;
+	}
+
+	public function queryVirtualParticipation(array $user = null) {
+		if (!$user) {
+			return null;
+		}
+		$info = DB::selectFirst([
+			"select * from contests_virtual_participants",
+			"where", [
+				"contest_id" => $this->info['id'],
+				"username" => $user['username'],
+			],
+		]);
+
+		if (!$info) {
+			return null;
+		}
+
+		$info['start_time'] = new DateTime($info['start_time']);
+		$info['end_time'] = new DateTime($info['end_time']);
+
+		return $info;
+	}
+
+	public function queryVirtualParticipants() {
+		return DB::selectAll([
+			"select username, start_time, end_time from contests_virtual_participants",
+			"where", [
+				"contest_id" => $this->info['id'],
+			],
+			"order by start_time desc",
+		]);
+	}
+
+	public function getVirtualParticipationInfo(array $user = null) {
+		$info = $this->queryVirtualParticipation($user);
+		if (!$info) {
+			return null;
+		}
+		$now_ts = UOJTime::$time_now->getTimestamp();
+		$end_ts = $info['end_time']->getTimestamp();
+		$info['remaining_seconds'] = max(0, $end_ts - $now_ts);
+		$info['is_active'] = $info['remaining_seconds'] > 0;
+
+		return $info;
+	}
+
+	public function isVirtualParticipationActive(array $user = null) {
+		$info = $this->getVirtualParticipationInfo($user);
+		return $info && $info['is_active'];
+	}
+
+	public function startVirtualParticipation(array $user = null) {
+		if (!$user || !$this->canStartVirtualParticipation($user)) {
+			return null;
+		}
+
+		$existing = $this->queryVirtualParticipation($user);
+		if ($existing) {
+			return $existing;
+		}
+
+		$start_time = clone UOJTime::$time_now;
+		$end_time = clone $start_time;
+		$end_time->add(new DateInterval('PT' . $this->info['last_min'] . 'M'));
+
+		DB::insert([
+			"insert into contests_virtual_participants",
+			"(contest_id, username, start_time, end_time)",
+			"values", DB::tuple([
+				$this->info['id'],
+				$user['username'],
+				$start_time->format(UOJTime::FORMAT),
+				$end_time->format(UOJTime::FORMAT),
+			]),
+		]);
+
+		return $this->queryVirtualParticipation($user);
 	}
 
 	public function defaultProblemJudgeType() {
@@ -634,6 +725,8 @@ class UOJContest {
 	public function getContestCard($cfg = []) {
 		$cfg += [
 			'class' => 'mb-2',
+			'status_label' => null,
+			'countdown_seconds' => null,
 		];
 
 		$res = '';
@@ -648,7 +741,15 @@ class UOJContest {
 				<div class="card-text text-center text-muted">
 		EOD;
 
-		if ($this->progress() <= CONTEST_IN_PROGRESS) {
+		if ($cfg['countdown_seconds'] !== null) {
+			if ($cfg['status_label']) {
+				$res .= HTML::tag('div', ['class' => 'small'], $cfg['status_label']);
+			}
+			$res .= HTML::tag('span', [
+				'class' => 'countdown fs-3',
+				'data-rest' => $cfg['countdown_seconds'],
+			], ' ');
+		} elseif ($this->progress() <= CONTEST_IN_PROGRESS) {
 			$res .= HTML::tag('span', [
 				'class' => 'countdown fs-3',
 				'data-rest' => $this->info['end_time']->getTimestamp() - UOJTime::$time_now->getTimestamp(),

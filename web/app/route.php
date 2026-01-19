@@ -42,6 +42,8 @@ Route::group(
 		Route::any('/contest/{id}/registrants', '/contest_members.php');
 		Route::any('/contest/{id}/register', '/contest_registration.php');
 		Route::any('/contest/{id}/confirm', '/contest_confirmation.php');
+		Route::any('/contest/{id}/virtual', '/contest_virtual.php');
+		Route::any('/contest/{id}/virtual/registrants', '/contest_virtual_registrants.php');
 		Route::any('/contest/{id}/resources(?:/{sub_path})?', '/contest_resources.php');
 		Route::any('/contest/{id}/manage(?:/{tab})?', '/contest_manage.php');
 		Route::any('/contest/{id}/submissions', '/contest_inside.php?tab=submissions');

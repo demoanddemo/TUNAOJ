@@ -12,6 +12,9 @@ $PageContainerClass = 'container';
 
 $contest = UOJContest::info();
 $is_manager = UOJContest::cur()->userCanManage(Auth::user());
+$virtual_info = UOJContest::cur()->getVirtualParticipationInfo(Auth::user());
+$virtual_can_start = UOJContest::cur()->canStartVirtualParticipation(Auth::user());
+$virtual_active = $virtual_info && $virtual_info['is_active'];
 
 if (isset($_GET['tab'])) {
 	$cur_tab = $_GET['tab'];
@@ -555,7 +558,14 @@ echoUOJPageHeader($tabs_info[$cur_tab]['name'] . ' - ' . UOJContest::info('name'
 		<hr class="d-md-none" />
 
 		<div class="col-md-3">
-			<?= UOJContest::cur()->getContestCard() ?>
+			<?php if ($virtual_active) : ?>
+				<?= UOJContest::cur()->getContestCard([
+					'countdown_seconds' => $virtual_info['remaining_seconds'],
+					'status_label' => UOJLocale::get('contests::virtual contest ends in'),
+				]) ?>
+			<?php else : ?>
+				<?= UOJContest::cur()->getContestCard() ?>
+			<?php endif ?>
 
 			<?php if (UOJContest::cur()->basicRule() === 'OI') : ?>
 				<p>此次比赛为 OI 赛制。</p>
@@ -568,9 +578,15 @@ echoUOJPageHeader($tabs_info[$cur_tab]['name'] . ' - ' . UOJContest::info('name'
 				<p>比赛时显示的得分即最终得分。</p>
 			<?php endif ?>
 
-			<a href="<?= UOJContest::cur()->getUri('/registrants') ?>" class="btn btn-secondary d-block mt-2">
-				<?= UOJLocale::get('contests::contest registrants') ?>
-			</a>
+			<?php if ($virtual_can_start) : ?>
+				<a href="<?= UOJContest::cur()->getUri('/virtual/registrants') ?>" class="btn btn-secondary d-block mt-2">
+					<?= UOJLocale::get('contests::virtual contest registrants') ?>
+				</a>
+			<?php else : ?>
+				<a href="<?= UOJContest::cur()->getUri('/registrants') ?>" class="btn btn-secondary d-block mt-2">
+					<?= UOJLocale::get('contests::contest registrants') ?>
+				</a>
+			<?php endif ?>
 			<?php if ($is_manager) : ?>
 				<a href="<?= UOJContest::cur()->getUri('/manage') ?>" class="btn btn-primary d-block mt-2">
 					管理
@@ -584,6 +600,33 @@ echoUOJPageHeader($tabs_info[$cur_tab]['name'] . ' - ' . UOJContest::info('name'
 			<?php if (isset($publish_result_form)) : ?>
 				<div class="mt-2">
 					<?php $publish_result_form->printHTML(); ?>
+				</div>
+			<?php endif ?>
+			<?php if ($virtual_can_start) : ?>
+				<div class="card mt-3 border-primary">
+					<div class="card-header fw-bold text-white bg-primary">
+						<?= UOJLocale::get('contests::virtual contest') ?>
+					</div>
+					<div class="card-body">
+						<?php if ($virtual_active) : ?>
+							<p class="mb-2"><?= UOJLocale::get('contests::virtual contest in progress') ?></p>
+							<a class="btn btn-secondary" href="<?= UOJContest::cur()->getUri() ?>">
+								<?= UOJLocale::get('contests::virtual contest continue') ?>
+							</a>
+						<?php elseif ($virtual_info) : ?>
+							<p class="mb-0 text-muted"><?= UOJLocale::get('contests::virtual contest finished') ?></p>
+						<?php else : ?>
+							<p class="mb-2"><?= UOJLocale::get('contests::virtual contest ready') ?></p>
+							<a class="btn btn-secondary" href="<?= UOJContest::cur()->getUri('/virtual') ?>">
+								<?= UOJLocale::get('contests::virtual contest start') ?>
+							</a>
+						<?php endif ?>
+					</div>
+					<div class="list-group list-group-flush">
+						<a class="list-group-item list-group-item-action" href="<?= UOJContest::cur()->getUri('/virtual/registrants') ?>">
+							<?= UOJLocale::get('contests::virtual contest registrants') ?>
+						</a>
+					</div>
 				</div>
 			<?php endif ?>
 
