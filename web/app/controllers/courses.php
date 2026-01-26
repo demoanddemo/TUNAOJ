@@ -57,7 +57,7 @@ $header = HTML::tag('tr', [], [
 $pag = new Paginator([
 	'col_names' => [
 		'courses.*',
-		DB::rawvalue('(select count(*) from course_chapters where course_id = courses.id) as chapters_count')
+		'(select count(*) from course_chapters where course_id = courses.id) as chapters_count'
 	],
 	'table_name' => 'courses',
 	'cond' => $cond,
