@@ -61,4 +61,44 @@ class UOJCourse {
 			"order by display_order, id"
 		]);
 	}
+
+	public function isUserEnrolled(array $user = null) {
+		if (!$user || !isset($user['id'])) {
+			return false;
+		}
+		return DB::selectFirst([
+			"select id from course_enrollments",
+			"where", [
+				"course_id" => $this->info['id'],
+				"user_id" => $user['id'],
+			],
+		]) !== null;
+	}
+
+	public function enrollUserId($user_id) {
+		if (!validateUInt($user_id)) {
+			return false;
+		}
+		DB::insert([
+			"insert ignore into course_enrollments",
+			DB::bracketed_fields(['course_id', 'user_id']),
+			"values",
+			DB::tuple([$this->info['id'], (int)$user_id]),
+		]);
+		return true;
+	}
+
+	public function removeUserId($user_id) {
+		if (!validateUInt($user_id)) {
+			return false;
+		}
+		DB::delete([
+			"delete from course_enrollments",
+			"where", [
+				"course_id" => $this->info['id'],
+				"user_id" => (int)$user_id,
+			],
+		]);
+		return true;
+	}
 }

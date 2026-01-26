@@ -17,6 +17,10 @@ $tabs_info = [
 		'name' => '章节管理',
 		'url' => '/course/' . UOJCourse::info('id') . '/manage/chapters',
 	],
+	'students' => [
+		'name' => '学员管理',
+		'url' => '/course/' . UOJCourse::info('id') . '/manage/students',
+	],
 ];
 
 if (!isset($tabs_info[$cur_tab])) {
@@ -306,6 +310,63 @@ if ($cur_tab == 'profile') {
 		$delete_form->runAtServer();
 		$delete_forms[$chapter['id']] = $delete_form;
 	}
+} elseif ($cur_tab == 'students') {
+	$add_student_form = new UOJForm('add_student');
+	$add_student_form->addInput('username', [
+		'label' => '用户名',
+		'div_class' => 'mb-3',
+		'validator_php' => function ($username, &$vdata) {
+			if ($username === '') {
+				return '用户名不能为空';
+			}
+			$user = UOJUser::query($username);
+			if (!$user) {
+				return '用户不存在';
+			}
+			$vdata['user_id'] = $user['id'];
+			$vdata['username'] = $user['username'];
+			return '';
+		},
+	]);
+	$add_student_form->handle = function ($vdata) {
+		UOJCourse::cur()->enrollUserId($vdata['user_id']);
+	};
+	$add_student_form->config['submit_button']['text'] = '添加学员';
+	$add_student_form->config['confirm']['smart'] = true;
+	$add_student_form->runAtServer();
+
+	$enrolled_users = DB::selectAll([
+		"select user_info.username, course_enrollments.user_id, course_enrollments.enroll_time",
+		"from course_enrollments",
+		"inner join user_info",
+		"on", [
+			"course_enrollments.user_id" => DB::raw("user_info.id"),
+		],
+		"where", [
+			"course_enrollments.course_id" => UOJCourse::info('id'),
+		],
+		"order by course_enrollments.id desc",
+	]);
+
+	$remove_student_forms = [];
+	foreach ($enrolled_users as $user) {
+		$remove_form = new UOJForm('remove_student_' . $user['user_id']);
+		$remove_form->addHidden('user_id_' . $user['user_id'], $user['user_id'], function ($user_id, &$vdata) {
+			if (!validateUInt($user_id)) {
+				return '用户不合法';
+			}
+			$vdata['user_id'] = $user_id;
+			return '';
+		}, null);
+		$remove_form->handle = function ($vdata) {
+			UOJCourse::cur()->removeUserId($vdata['user_id']);
+		};
+		$remove_form->config['submit_button']['class'] = 'btn btn-outline-danger btn-sm';
+		$remove_form->config['submit_button']['text'] = '移除';
+		$remove_form->config['confirm']['smart'] = true;
+		$remove_form->runAtServer();
+		$remove_student_forms[$user['user_id']] = $remove_form;
+	}
 }
 ?>
 
@@ -334,6 +395,10 @@ if ($cur_tab == 'profile') {
 				<div class="card-header">添加章节</div>
 				<div class="card-body">
 					<?php $add_chapter_form->printHTML() ?>
+					<div class="text-muted mt-2">
+						题目添加请先创建题单，然后在题单管理页添加题目。
+						<a href="<?= HTML::url('/lists') ?>">前往题单列表</a>
+					</div>
 				</div>
 			</div>
 
@@ -347,9 +412,64 @@ if ($cur_tab == 'profile') {
 					</div>
 					<div class="card-body">
 						<?php $chapter_forms[$chapter['id']]->printHTML() ?>
+						<div class="mt-3">
+							<?php if ($chapter['example_list_id']) : ?>
+								<a class="btn btn-sm btn-outline-secondary" href="<?= HTML::url('/list/' . $chapter['example_list_id'] . '/manage/problems') ?>">
+									管理例题题单
+								</a>
+							<?php endif ?>
+							<?php if ($chapter['practice_list_id']) : ?>
+								<a class="btn btn-sm btn-outline-secondary ms-2" href="<?= HTML::url('/list/' . $chapter['practice_list_id'] . '/manage/problems') ?>">
+									管理练习题题单
+								</a>
+							<?php endif ?>
+						</div>
 					</div>
 				</div>
 			<?php endforeach ?>
+		<?php elseif ($cur_tab == 'students') : ?>
+			<div class="card mb-3">
+				<div class="card-header">添加学员</div>
+				<div class="card-body">
+					<?php $add_student_form->printHTML() ?>
+				</div>
+			</div>
+
+			<div class="card mb-3">
+				<div class="card-header">已报名学员</div>
+				<div class="table-responsive">
+					<table class="table uoj-table mb-0">
+						<thead>
+							<tr>
+								<th>用户名</th>
+								<th>报名时间</th>
+								<th class="text-end">操作</th>
+							</tr>
+						</thead>
+						<tbody>
+							<?php if (empty($enrolled_users)) : ?>
+								<tr>
+									<td colspan="3" class="text-center text-muted">暂无学员</td>
+								</tr>
+							<?php else : ?>
+								<?php foreach ($enrolled_users as $user) : ?>
+									<tr>
+										<td>
+											<a href="<?= HTML::url('/user/' . $user['username']) ?>">
+												<?= HTML::escape($user['username']) ?>
+											</a>
+										</td>
+										<td><?= HTML::escape($user['enroll_time']) ?></td>
+										<td class="text-end">
+											<?php $remove_student_forms[$user['user_id']]->printHTML(); ?>
+										</td>
+									</tr>
+								<?php endforeach ?>
+							<?php endif ?>
+						</tbody>
+					</table>
+				</div>
+			</div>
 		<?php endif ?>
 	</div>
 

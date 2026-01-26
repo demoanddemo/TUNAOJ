@@ -1,4 +1,5 @@
 <?php
+requirePHPLib('form');
 requirePHPLib('data');
 requirePHPLib('judger');
 
@@ -82,6 +83,25 @@ $problem_header .= '<th class="text-center" style="width:50px;">' . UOJLocale::g
 $problem_header .= '</tr>';
 
 $chapters = UOJCourse::cur()->queryChapters();
+$is_enrolled = UOJCourse::cur()->isUserEnrolled(Auth::user());
+
+$enroll_form = new UOJForm('enroll_course');
+$enroll_form->handle = function () {
+	UOJCourse::cur()->enrollUserId(Auth::id());
+};
+$enroll_form->config['submit_button']['class'] = 'btn btn-sm btn-primary';
+$enroll_form->config['submit_button']['text'] = '报名课程';
+$enroll_form->config['confirm']['smart'] = true;
+$enroll_form->runAtServer();
+
+$unenroll_form = new UOJForm('unenroll_course');
+$unenroll_form->handle = function () {
+	UOJCourse::cur()->removeUserId(Auth::id());
+};
+$unenroll_form->config['submit_button']['class'] = 'btn btn-sm btn-outline-secondary';
+$unenroll_form->config['submit_button']['text'] = '取消报名';
+$unenroll_form->config['confirm']['smart'] = true;
+$unenroll_form->runAtServer();
 ?>
 
 <?php echoUOJPageHeader(UOJCourse::info('title') . ' - 课程') ?>
@@ -97,11 +117,18 @@ $chapters = UOJCourse::cur()->queryChapters();
 					</div>
 				<?php endif ?>
 			</div>
-			<?php if (UOJCourse::userCanManage(Auth::user())) : ?>
-				<a class="btn btn-sm btn-outline-secondary" href="<?= HTML::url('/course/' . UOJCourse::info('id') . '/manage') ?>">
-					管理课程
-				</a>
-			<?php endif ?>
+			<div class="d-flex flex-column gap-2">
+				<?php if ($is_enrolled) : ?>
+					<?php $unenroll_form->printHTML(); ?>
+				<?php else : ?>
+					<?php $enroll_form->printHTML(); ?>
+				<?php endif ?>
+				<?php if (UOJCourse::userCanManage(Auth::user())) : ?>
+					<a class="btn btn-sm btn-outline-secondary" href="<?= HTML::url('/course/' . UOJCourse::info('id') . '/manage') ?>">
+						管理课程
+					</a>
+				<?php endif ?>
+			</div>
 		</div>
 
 		<?php if (empty($chapters)) : ?>
