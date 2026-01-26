@@ -1,6 +1,5 @@
 <?php
 requirePHPLib('form');
-requirePHPLib('data');
 
 $can_manage_courses = UOJCourse::userCanManage(Auth::user());
 
@@ -15,7 +14,6 @@ if ($can_manage_courses) {
 		]);
 		$course_id = DB::insert_id();
 		redirectTo("/course/{$course_id}/manage");
-		die();
 	};
 	$new_course_form->config['submit_container']['class'] = 'text-end';
 	$new_course_form->config['submit_button']['class'] = 'btn btn-primary';
