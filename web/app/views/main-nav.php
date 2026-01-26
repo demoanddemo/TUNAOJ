@@ -28,6 +28,12 @@ mb-4
 					</a>
 				</li>
 				<li class="nav-item">
+					<a class="nav-link" href="<?= HTML::url('/courses') ?>">
+						<i class="bi bi-journal-text"></i>
+						课程
+					</a>
+				</li>
+				<li class="nav-item">
 					<a class="nav-link" href="<?= HTML::url('/groups') ?>">
 						<i class="bi bi-people"></i>
 						<?= UOJLocale::get('groups') ?>
